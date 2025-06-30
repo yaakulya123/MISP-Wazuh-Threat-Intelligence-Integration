@@ -15,18 +15,31 @@ Ubuntu Server (192.168.64.17)     ←     Parrot OS (192.168.64.11)
 └── Integration Scripts
 ```
 
-### Key Components
-- **Network Monitoring**: Suricata IDS with 44,000+ detection rules for comprehensive network traffic analysis
-- **SIEM Platform**: Wazuh for centralized security event management and log correlation
-- **Threat Intelligence**: MISP with automated IOC correlation against global threat databases
-- **Integration Layer**: Custom Python scripts for real-time threat enrichment and alert enhancement
+### Infrastructure Components
+During the deployment, the configuration involves a multi-tier security architecture with threat intelligence capabilities. The Wazuh Manager serves as the central SIEM platform while MISP provides threat intelligence enrichment for detected indicators.
+
+- **Wazuh Manager**: Ubuntu 22.04 (192.168.64.17:443) - Central SIEM server with integrated threat intelligence capabilities
+- **MISP Platform**: Ubuntu 22.04 (192.168.64.17:8443) - Threat intelligence repository and API services
+- **Suricata + Wazuh Agent**: Parrot OS (192.168.64.11) - Network monitoring and endpoint security agent
+- **Integration Engine**: Python-based API connector for real-time threat intelligence lookups
+
+### Data Flow Architecture
+The security data flows through multiple intelligence layers from network detection to threat-enriched alerts. Each processing stage adds contextual threat intelligence before presenting actionable security insights.
+
+```
+Network Events → Wazuh SIEM → Integration Engine → MISP API Query → Threat Intelligence → Enriched Alerts
+```
 
 ## Prerequisites
 
-- Ubuntu 22.04 LTS server with Wazuh Manager installed and operational
-- Existing Wazuh-Suricata integration configured for network monitoring
-- Network connectivity between all components in the 192.168.64.x subnet
-- Administrative access to Ubuntu server with sudo privileges
+### System Requirements
+The threat intelligence integration requires additional resources for API processing and threat correlation. Proper resource allocation ensures real-time threat intelligence lookup performance.
+
+- Ubuntu 22.04+ with Wazuh Manager already installed and operational
+- MISP platform deployed and accessible via HTTPS with valid API credentials
+- Python 3.x environment with requests library for API communication
+- Network connectivity between Wazuh and MISP platforms with HTTPS access
+- Administrative privileges for integration script deployment and configuration
 
 ## Implementation Guide
 
@@ -37,6 +50,8 @@ Docker provides containerization for MISP deployment, ensuring consistent enviro
 ```bash
 sudo apt update && sudo apt install docker.io docker-compose git -y
 ```
+![image](https://github.com/user-attachments/assets/ed79eac1-6b1f-4fed-a558-1329a5e169db)
+
 
 #### 1.2 Install Docker Compose V2
 Ubuntu's default Docker Compose version lacks support for newer container features required by MISP. This command downloads the latest stable release directly from GitHub to ensure compatibility.
@@ -44,11 +59,15 @@ Ubuntu's default Docker Compose version lacks support for newer container featur
 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
 ```
 
+![image](https://github.com/user-attachments/assets/a68a8dce-2225-449a-b27c-23bbfbe6e8be)
+
+
 #### 1.3 Create Symbolic Link
 Creating a symbolic link allows the system to find Docker Compose regardless of the installation method. This ensures compatibility with MISP's Docker setup scripts.
 ```bash
 sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
 ```
+![image](https://github.com/user-attachments/assets/c5d505df-ae0d-4b78-85c8-918da4e820b9)
 
 #### 1.4 Configure Docker Permissions
 Adding the current user to the Docker group eliminates the need for sudo with Docker commands. The newgrp command activates the group membership immediately without requiring logout.
@@ -56,6 +75,8 @@ Adding the current user to the Docker group eliminates the need for sudo with Do
 sudo usermod -aG docker $USER
 newgrp docker
 ```
+![image](https://github.com/user-attachments/assets/b30077c6-c97b-4fcd-a6e4-a74b4c1aa8f8)
+
 
 #### 1.5 Verify Installation
 Confirming the Docker Compose version ensures the installation was successful and the required features are available.
@@ -70,36 +91,47 @@ The official MISP Docker repository contains pre-configured containers and orche
 ```bash
 git clone https://github.com/MISP/misp-docker.git && cd misp-docker
 ```
+![image](https://github.com/user-attachments/assets/5d4b3a36-0100-43f0-8418-b4a3aab3d0ae)
+
 
 #### 2.2 Configure Environment
 The template environment file contains default configuration values for MISP services. Copying it to .env creates the active configuration file that Docker Compose will use during deployment.
 ```bash
 cp template.env .env && ls -la
 ```
+![image](https://github.com/user-attachments/assets/e14febd4-9b7e-4a13-bdc8-9bf8fc472269)
+
 
 #### 2.3 Verify Server IP Address
 Confirming the server's IP address ensures proper network configuration for MISP services. This IP will be used for accessing the MISP web interface and API endpoints.
 ```bash
 hostname -I
 ```
+![image](https://github.com/user-attachments/assets/395e75c2-1976-42e8-972b-4df146a4bdf7)
+
 
 #### 2.4 Download MISP Container Images
 Pulling container images downloads all required MISP components including the core application, database, Redis cache, and supporting services. This process may take several minutes depending on network speed.
 ```bash
 docker-compose pull
 ```
+![image](https://github.com/user-attachments/assets/98f183a3-57d2-48fc-a348-24379e57b7a2)
 
 #### 2.5 Resolve Port Conflicts
 Since Wazuh occupies port 443, MISP must be configured to use an alternative port to avoid binding conflicts. This modification changes the external port mapping while preserving internal SSL configuration.
 ```bash
 sed -i 's/443:443/8443:443/g' docker-compose.yml
 ```
+![image](https://github.com/user-attachments/assets/c6b4440c-3865-449a-976d-291362a95c39)
+
 
 #### 2.6 Deploy MISP Platform
 The detached mode (-d) flag starts all MISP containers in the background, allowing continued terminal access. This command orchestrates the entire MISP stack including database initialization and service dependencies.
 ```bash
 docker-compose up -d
 ```
+![image](https://github.com/user-attachments/assets/f8e8dbf4-def9-44cd-9b48-b438f8fb441c)
+
 
 #### 2.7 Verify Container Status
 Checking container status confirms successful deployment and identifies any services that failed to start properly. All containers should show "Up" status for a healthy deployment.
@@ -116,23 +148,42 @@ Navigate to: `https://192.168.64.17:8443`
 **Default Credentials:**
 - Username: `admin@admin.test`
 - Password: `admin`
+  
+![image](https://github.com/user-attachments/assets/d41d828a-38a4-4f9a-a07f-63f18db7b1e7)
+
 
 #### 3.2 Enable MISP Platform
 MISP includes safety mechanisms that disable certain features by default. Enabling the live setting activates all platform features including API access, event correlation, and automated processing capabilities.
+
 1. Navigate to **Administration** → **Server Settings & Maintenance**
+![image](https://github.com/user-attachments/assets/eee23b45-8c42-4d5f-a0b8-9d941e2fe4d5)
+
 2. Click on **MISP (49)** tab
+![image](https://github.com/user-attachments/assets/cd7f4a64-39c1-4c65-ae82-d83a2b611734)
+
 3. Verify `MISP.live` is set to `true`
+![image](https://github.com/user-attachments/assets/31f52094-59f6-4099-8ea7-f01adf8cbfb2)
+
 4. Apply configuration changes
+
 
 #### 3.3 Generate API Authentication Key
 API keys provide secure authentication for programmatic access to MISP services. The read-only permission limits Wazuh to querying threat intelligence without modifying MISP data, following security best practices.
 1. Click **Admin** (top right) → **My Profile**
-2. Click **Auth keys**
-3. Create new API key with settings:
+![image](https://github.com/user-attachments/assets/0a87b5bf-e51f-43e2-99e8-afe6c03c971c)
+
+3. Click **Auth keys**
+4. Create new API key with settings:
    - **Comment**: "Wazuh Integration"
    - **Read only**: ✅ Enabled
    - **Allowed IPs**: `192.168.64.17`
-4. Save the generated API key securely
+
+![image](https://github.com/user-attachments/assets/125bd9b9-9b57-49ab-b881-b970972e2a3a)
+
+5. Save the generated API key securely
+
+![image](https://github.com/user-attachments/assets/5cf64bb1-60b8-4149-b26e-36826c76b3ac)
+
 
 ### Phase 4: Wazuh-MISP Integration Development
 
@@ -141,6 +192,8 @@ Wazuh integration scripts process security alerts and enrich them with external 
 ```bash
 sudo nano /var/ossec/integrations/custom-misp.py
 ```
+![image](https://github.com/user-attachments/assets/e5b892a5-5e5b-46a3-983c-1bbecdaa9f2b)
+
 
 **Integration Script Content:**
 ```python
@@ -206,6 +259,8 @@ Proper file permissions ensure the Wazuh service can execute the integration scr
 sudo chmod 755 /var/ossec/integrations/custom-misp.py
 sudo chown root:wazuh /var/ossec/integrations/custom-misp.py
 ```
+![image](https://github.com/user-attachments/assets/6c5903ae-5bf7-4418-be1c-f8cb988db674)
+
 
 #### 4.3 Configure Wazuh Integration
 The ossec.conf file defines which security events trigger the MISP integration script. This configuration targets specific event types that are most likely to contain external IP addresses requiring threat intelligence enrichment.
@@ -221,6 +276,8 @@ Add the following configuration block before `</ossec_config>`:
   <alert_format>json</alert_format>
 </integration>
 ```
+![image](https://github.com/user-attachments/assets/de7483b7-44c5-473f-8896-4b8390eaad02)
+
 
 #### 4.4 Restart Wazuh Manager
 Restarting the Wazuh manager loads the new integration configuration and makes the MISP script available for processing security alerts. Status verification ensures the service restarted successfully with the new configuration.
@@ -228,6 +285,8 @@ Restarting the Wazuh manager loads the new integration configuration and makes t
 sudo systemctl restart wazuh-manager
 sudo systemctl status wazuh-manager
 ```
+![image](https://github.com/user-attachments/assets/ced42d41-0b5c-43d9-885a-9aab84137bfa)
+
 
 ### Phase 5: Testing and Validation
 
@@ -241,20 +300,33 @@ Creating test events allows validation of the integration without relying on ext
    - **Analysis**: "Initial"
 3. Submit event
 
+![image](https://github.com/user-attachments/assets/63e1b29b-0989-469b-9c60-58382df285d1)
+
+
 #### 5.2 Add Malicious Indicator
 Threat indicators define specific IOCs that MISP will track and correlate against security events. Adding a test IP address creates a known malicious indicator for integration testing purposes.
-1. Click **Add Attribute**
-2. Configure attribute:
+1. Click **Add Attribute** (should scroll down to find atrributes row) 
+![image](https://github.com/user-attachments/assets/fdc31530-1ebe-4de8-97ce-c3789e9f0ecd)
+
+![image](https://github.com/user-attachments/assets/15a77eeb-c364-45d0-8458-bc809b8dc3b0)
+
+3. Configure attribute:
    - **Category**: "Network activity"
    - **Type**: "ip-src"
    - **Value**: "8.8.8.8"
    - **Comment**: "Test malicious IP for Wazuh integration"
-3. Submit attribute
+4. Submit attribute
+![image](https://github.com/user-attachments/assets/03fc09cb-c20d-4d3d-acfa-f817a04f7560)
+
 
 #### 5.3 Publish Event
 Publishing makes the event and its indicators searchable via the MISP API. Unpublished events remain in draft status and won't appear in API queries, preventing integration testing from succeeding.
 1. Navigate to the created event
-2. Click **Publish Event**
+![image](https://github.com/user-attachments/assets/6cb39f0d-3f76-4b90-befc-878a542ce833)
+
+2. Click **Yes**
+![image](https://github.com/user-attachments/assets/844cd6c5-f37b-415b-a6f4-c23227ae9665)
+
 3. Confirm publication
 
 #### 5.4 Test MISP API Connectivity
@@ -262,12 +334,15 @@ Direct API testing verifies that MISP responds correctly to REST queries and ret
 ```bash
 curl -k -H "Authorization: YOUR_API_KEY_HERE" -H "Accept: application/json" "https://192.168.64.17:8443/attributes/restSearch" -X POST -d '{"value":"8.8.8.8"}' -H "Content-Type: application/json"
 ```
+![image](https://github.com/user-attachments/assets/18fd8260-2964-4724-ae9c-b6c2b67773ed)
+
 
 #### 5.5 Test Integration Script
 End-to-end testing simulates how Wazuh will invoke the integration script during real security events. I tested this functionality using simulated alert input that mimics an actual security alert containing the test IP address configured in MISP.
 ```bash
 echo '{"srcip":"8.8.8.8","rule":{"id":"1002"},"full_log":"test"}' | sudo -u wazuh python3 /var/ossec/integrations/custom-misp.py
 ```
+![image](https://github.com/user-attachments/assets/926c6365-7b95-4439-ae3d-e983e0c4ed67)
 
 **Expected Output:**
 ```json
@@ -288,18 +363,78 @@ Through this implementation, I achieved the following integration milestones:
 - **Wazuh SIEM Dashboard**: `https://192.168.64.17:443` - Main security monitoring interface
 - **MISP Threat Intelligence Platform**: `https://192.168.64.17:8443` - Threat intelligence management portal
 
-## Operational Benefits
 
-### Enhanced Detection Capabilities
-- **Automated IOC Correlation**: Real-time cross-referencing of network events against global threat intelligence databases containing millions of indicators
-- **Threat Context Enrichment**: Additional metadata for security alerts including threat severity, attribution, and campaign information for improved analyst decision-making
-- **Collaborative Intelligence**: Access to threat indicators from 6,000+ organizations worldwide through MISP's sharing communities
-- **Signature Generation**: Automatic export of IOCs into Suricata detection rules for proactive network monitoring
+## Architecture Diagram
 
-### Scalability and Performance
-- **Container-Based Architecture**: Easy scaling and resource management with Docker orchestration for handling increased threat intelligence loads
-- **API-Driven Integration**: Minimal performance impact on core SIEM operations through asynchronous threat intelligence queries
-- **Selective Processing**: Intelligent filtering of external IPs to reduce false positives and focus on relevant threat intelligence
+```
+                    MISP-Wazuh Threat Intelligence Architecture
+                           
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                            Ubuntu Server (192.168.64.17)                │
+    │                                                                         │
+    │  ┌─────────────────────────────┐    ┌─────────────────────────────────┐ │
+    │  │     Wazuh Manager           │    │     MISP Platform               │ │
+    │  │     (Port 443)              │    │     (Port 8443)                 │ │
+    │  │                             │    │                                 │ │
+    │  │  ┌───────────────────────┐  │    │  ┌─────────────────────────────┐ │ │
+    │  │  │   Event Processing    │  │    │  │    Threat Intelligence      │ │ │
+    │  │  │   Engine              │  │◄───┼──┤    Repository               │ │ │
+    │  │  └───────────────────────┘  │    │  └─────────────────────────────┘ │ │
+    │  │                             │    │                                 │ │
+    │  │  ┌───────────────────────┐  │    │  ┌─────────────────────────────┐ │ │
+    │  │  │   Integration         │  │    │  │    RESTful API              │ │ │
+    │  │  │   Script Engine       │  │────┼──┤    Interface                │ │ │
+    │  │  └───────────────────────┘  │    │  └─────────────────────────────┘ │ │
+    │  │                             │    │                                 │ │
+    │  │  ┌───────────────────────┐  │    │  ┌─────────────────────────────┐ │ │
+    │  │  │   Security            │  │    │  │    IOC Database             │ │ │
+    │  │  │   Dashboard           │  │    │  │    (Indicators)             │ │ │
+    │  │  └───────────────────────┘  │    │  └─────────────────────────────┘ │ │
+    │  └─────────────────────────────┘    └─────────────────────────────────┘ │
+    └─────────────────────────────────────────────────────────────────────────┘
+                                          │
+                                          ▼
+                            ┌─────────────────────────────┐
+                            │     Parrot OS Endpoint      │
+                            │     (192.168.64.11)         │
+                            │                             │
+                            │  ┌─────────────────────────┐ │
+                            │  │    Suricata IDS         │ │
+                            │  │    + Wazuh Agent        │ │
+                            │  └─────────────────────────┘ │
+                            └─────────────────────────────┘
+
+    ┌─────────────────────────────────────────────────────────────────────────┤
+    │                        Threat Intelligence Pipeline                     │
+    └─────────────────────────────────────────────────────────────────────────┘
+              │                    │                    │                    │
+              ▼                    ▼                    ▼                    ▼
+    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+    │ Security Event  │  │ IP Extraction   │  │ MISP API Query  │  │ Enriched Alert  │
+    │ Detection       │  │ & Filtering     │  │ & Correlation   │  │ Generation      │
+    │                 │  │                 │  │                 │  │                 │
+    │ • Suricata      │──┤ • Regex Pattern │──┤ • RESTful API   │──┤ • Threat Level  │
+    │ • System Logs   │  │ • Private IP    │  │ • JSON Response │  │ • Attribution   │
+    │ • Applications  │  │   Exclusion     │  │ • Indicator     │  │ • Risk Context  │
+    │ • Network       │  │ • IoC           │  │   Matching      │  │ • Analyst       │
+    │   Activity      │  │   Extraction    │  │                 │  │   Dashboard     │
+    └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘
+
+    Communication Protocols:
+    ═══════════════════════
+    Wazuh ↔ MISP: HTTPS/8443 (API Communications)
+    Agent → Manager: TCP/1514 (Event Forwarding)
+    Dashboard Access: HTTPS/443 (Analyst Interface)
+    
+    Threat Intelligence Types:
+    ═════════════════════════
+    • Malicious IP Addresses (Network Indicators)
+    • Suspicious Domain Names (DNS Intelligence)
+    • File Hashes (Malware Signatures)
+    • URLs (Web Threat Indicators)
+    • Attack Patterns (Behavioral Intelligence)
+```
+
 
 ## Challenges and Solutions
 
@@ -392,13 +527,11 @@ newgrp docker
 - Monitoring of integration script performance and error rates to ensure reliable threat intelligence enrichment
 - Backup strategies for threat intelligence data including automated exports and disaster recovery procedures
 
-### Enterprise Threat Intelligence Platform
-Scaling the integration for enterprise deployment involves multi-source intelligence aggregation and advanced correlation capabilities.
-
-- Multi-Source Intelligence: Integration with commercial threat intelligence provider
-- Threat Intelligence Fusion: Correlation across multiple intelligence sources and formats
-- Custom Intelligence Development: Organization-specific threat intelligence creation workflows
-- Strategic Threat Assessment: Executive-level threat intelligence reporting and analysis
+### Enhanced Detection Capabilities
+- **Automated IOC Correlation**: Real-time cross-referencing of network events against global threat intelligence databases containing millions of indicators
+- **Threat Context Enrichment**: Additional metadata for security alerts including threat severity, attribution, and campaign information for improved analyst decision-making
+- **Collaborative Intelligence**: Access to threat indicators from 6,000+ organizations worldwide through MISP's sharing communities
+- **Signature Generation**: Automatic export of IOCs into Suricata detection rules for proactive network monitoring
 
 Conclusion
 Through this project, the implementation demonstrates advanced threat intelligence integration capabilities by connecting MISP's comprehensive threat intelligence platform with Wazuh's powerful SIEM functionality. The solution provides automated threat intelligence enrichment, real-time indicator correlation, and contextual security analysis suitable for enterprise security operations.
